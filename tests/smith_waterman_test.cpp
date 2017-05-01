@@ -5,7 +5,7 @@
 #include <vector>
 #include "sequence.hpp"
 
-using namespace SmithWatermanSIMD;
+using namespace poa_alignment;
 
 std::vector<short> SmithWatermanNoSimd(Sequence query,
                                        std::vector<Sequence> database,
@@ -28,16 +28,10 @@ int main() {
   int r = 1;
   int q = 3;
 
-  std::vector<Sequence> query_vector;
-  std::string query_string = ReadFile(query_path);
-  assert(ParseFasta(query_string, &query_vector) == 0);
+  std::vector<Sequence> query_vector = ParseFasta(ReadFile(query_path));
   assert(query_vector.size() == 1U);
-  std::vector<Sequence> database;
-  std::string database_string = ReadFile(database_path);
-  assert(ParseFasta(database_string, &database) == 0);
-  std::string matrix_string = ReadFile(matrix_path);
-  ScoreMatrix matrix;
-  assert(matrix.Init(matrix_string) == 0);
+  std::vector<Sequence> database = ParseFasta(ReadFile(database_path));
+  ScoreMatrix matrix(ReadFile(matrix_path));
 
   std::vector<short> results =
       SmithWatermanNoSimd(query_vector[0], database, matrix, q, r);

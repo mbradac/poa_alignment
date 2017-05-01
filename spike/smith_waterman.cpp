@@ -3,7 +3,7 @@
 #include <vector>
 #include "sequence.hpp"
 
-using namespace SmithWatermanSIMD;
+using namespace poa_alignment;
 
 std::vector<short> SmithWatermanNoSimd(Sequence query,
                                        std::vector<Sequence> database,
