@@ -7,9 +7,9 @@
 
 using namespace poa_alignment;
 
-std::vector<short> SmithWatermanNoSimd(Sequence query,
-                                       std::vector<Sequence> database,
-                                       const ScoreMatrix &matrix, int q, int r);
+std::vector<int> SmithWatermanNoSimd(Sequence query,
+                                     std::vector<Sequence> database,
+                                     const ScoreMatrix &matrix, int q, int r);
 
 std::string ReadFile(const char *path) {
   std::ifstream file;
@@ -33,9 +33,9 @@ int main() {
   std::vector<Sequence> database = ParseFasta(ReadFile(database_path));
   ScoreMatrix matrix(ReadFile(matrix_path));
 
-  std::vector<short> results =
+  std::vector<int> results =
       SmithWatermanNoSimd(query_vector[0], database, matrix, q, r);
-  std::vector<short> real_results;
+  std::vector<int> real_results;
   std::ifstream results_file;
   results_file.open(results_path);
   short result;
@@ -47,7 +47,7 @@ int main() {
     printf("WRONG!\n");
     return 1;
   }
-  for (int i = 0; i < (int)results.size(); ++i) {
+  for (int i = 0; i < static_cast<int>(results.size()); ++i) {
     if (results[i] != real_results[i]) {
       printf("WRONG!\n");
       return 1;
