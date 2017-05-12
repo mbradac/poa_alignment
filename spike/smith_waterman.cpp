@@ -5,7 +5,6 @@
 
 using namespace poa_alignment;
 
-typedef long long llint;
 std::vector<int> SmithWatermanNoSimd(Sequence query,
                                      std::vector<Sequence> database,
                                      const ScoreMatrix &matrix, int q, int r) {

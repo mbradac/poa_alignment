@@ -25,6 +25,12 @@ class ScoreMatrix {
   int alphabet_size() const { return alphabet_size_; }
   int dummy_character() const { return alphabet_size_ - 1; }
   const int *get_matrix_row(int i) const { return matrix_[i]; }
+  char position_to_letter(int x) const {
+    for (int i = 0; i < kMatrixSize; ++i) {
+      if (position_of_letter_[i] == x) return i;
+    }
+    return -1;
+  }
 
  private:
   int alphabet_size_;
@@ -33,7 +39,7 @@ class ScoreMatrix {
 };
 
 void TranslateSequence(Sequence *sequence, const ScoreMatrix &matrix,
-                       int length_multiple);
+                       int length_multiple = 1);
 }
 
 #endif  // POA_ALIGNMENT_SEQUENCE_H_
