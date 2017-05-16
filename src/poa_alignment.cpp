@@ -102,10 +102,6 @@ void AlignSequenceToGraph(std::pair<Node *, Node *> graph, Sequence sequence,
     }
   }
 
-  for (auto x : dp) {
-    printf("%d %p: %d\n", x.first.first, x.first.second, x.second);
-  }
-
   // Find best score.
   std::pair<int, Node *> state(0, nullptr);
   for (auto score : dp) {
@@ -133,30 +129,24 @@ void AlignSequenceToGraph(std::pair<Node *, Node *> graph, Sequence sequence,
   auto *sequence_node = state.second;
   while (true) {
     auto prev_state = prev[state];
-    printf("matched\n");
-    printf("====== %d %p : %d\n", state.first, state.second, dp[state]);
-    printf("====== %d %p : %d\n", prev_state.first, prev_state.second,
-           dp[prev_state]);
     if (state.first != prev_state.first && state.second != prev_state.second) {
-      printf("oba\n");
       if (sequence_node != graph_node) {
         prev_state.second->edges.push_back(sequence_node);
       }
       sequence_node = graph_node = prev_state.second;
     } else if (state.second == prev_state.second) {
-      printf("graph isti %d\n", prev_state.first);
       auto *new_node = storage.Create();
       new_node->letter = sequence.sequence[prev_state.first];
       new_node->edges.push_back(sequence_node);
       sequence_node = new_node;
     } else {
-      printf("sequence isti\n");
       graph_node = prev_state.second;
     }
     state = prev_state;
     if (dp[state] == 0) break;
   }
 
+  // Create nodes for the beggining part.
   if (state.second == start_node) return;
   node = start_node;
   for (int i = 0; i < state.first; ++i) {
