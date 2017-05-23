@@ -8,36 +8,61 @@
 
 namespace poa_alignment {
 
-template <typename T>
-class Storage {
+struct Node {
+  Node(char letter) : letter(letter) {}
+  char letter = -1;
+  // Next node and weight.
+  std::vector<std::pair<Node *, int>> edges;
+};
+
+class Graph {
  public:
-  T *Create() {
-    storage_.emplace_back(new T());
-    return storage_.back().get();
+  std::vector<Node *> start_nodes;
+
+  Node *AddNode(int letter) {
+    storage.emplace_back(new Node(letter));
+    return storage.back().get();
   }
 
+  Node *AddStartNode(int letter) {
+    Node *node = AddNode(letter);
+    start_nodes.push_back(node);
+    return node;
+  }
+
+  std::pair<Node *, bool> AddEdge(Node *from, int letter) {
+    for (auto &edge : from->edges) {
+      if (edge.first->letter == letter) {
+        edge.second += 1;
+        return {edge.first, false};
+      }
+    }
+    auto *new_node = AddNode(letter);
+    from->edges.emplace_back(new_node, 1);
+    return {new_node, true};
+  };
+
+  Node *InsertSequence(Node *prev, std::string sequence) {
+    if (sequence.size() == 0U) return nullptr;
+    if (!prev) {
+      prev = AddStartNode(sequence[0]);
+      sequence = sequence.substr(1);
+    }
+    for (char c : sequence) {
+      prev = AddEdge(prev, c).first;
+    }
+    return prev;
+  };
+
  private:
-  std::vector<std::unique_ptr<T>> storage_;
+  std::vector<std::unique_ptr<Node>> storage;
 };
 
-class Node {
- public:
-  char letter = -1;
-  std::vector<Node *> edges;
+std::vector<Node *> TopologicalSort(const std::vector<Node *> &start_nodes);
 
- private:
-  Node() = default;
-  friend class Storage<Node>;
-};
+Graph GraphFromSequence(Sequence sequence, const ScoreMatrix &matrix);
 
-std::vector<Node *> TopologicalSort(Node *start_node);
-
-std::pair<Node *, Node *> GraphFromSequence(Sequence sequence,
-                                            const ScoreMatrix &matrix,
-                                            Storage<Node> &storage);
-
-void AlignSequenceToGraph(std::pair<Node *, Node *> start_node,
-                          Sequence sequence, const ScoreMatrix &matrix,
-                          int gap_penalty, Storage<Node> &storage);
+void AlignSequenceToGraph(Graph &graph, Sequence sequence,
+                          const ScoreMatrix &matrix, int gap_penalty);
 }
 #endif  // POA_ALIGNMENT_POA_ALIGNMENT_H_
