@@ -64,5 +64,7 @@ Graph GraphFromSequence(Sequence sequence, const ScoreMatrix &matrix);
 
 void AlignSequenceToGraph(Graph &graph, Sequence sequence,
                           const ScoreMatrix &matrix, int gap_penalty);
+
+std::vector<Node *> FindConcensus(const std::vector<Node *> &start_nodes);
 }
 #endif  // POA_ALIGNMENT_POA_ALIGNMENT_H_

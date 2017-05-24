@@ -73,10 +73,8 @@ void Run(const std::string &s1, const std::string &s2,
   auto *VAR = new Node(LETTER == -1 ? -1 : matrix.get_position(LETTER)); \
   storage.emplace_back(VAR);
 
-int main() {
-  const char matrix_path[] = "data/matrix/blosum50.mat";
-  std::vector<std::unique_ptr<Node>> storage;
-  ScoreMatrix matrix(ReadFile(matrix_path));
+void TestAlignSequenceToGraph(const ScoreMatrix &matrix,
+                              std::vector<std::unique_ptr<Node>> &storage) {
   {
     CREATE(d1, 'D');
     CREATE(d2, 'D');
@@ -180,6 +178,103 @@ int main() {
     d2->edges = {{m2, 1}};
     Run("PKMCVRPQKNETC", "THKMDVRNETDM", start_nodes);
   }
+}
+
+void TestFindConcensus(const ScoreMatrix &matrix,
+                       std::vector<std::unique_ptr<Node>> &storage) {
+  {
+    CREATE(p1, 'P');
+    CREATE(k1, 'K');
+    CREATE(m1, 'M');
+    CREATE(c1, 'C');
+    CREATE(v1, 'V');
+    CREATE(r1, 'R');
+    CREATE(p2, 'P');
+    CREATE(q1, 'Q');
+    CREATE(k2, 'K');
+    CREATE(n1, 'N');
+    CREATE(e1, 'E');
+    CREATE(t1, 'T');
+    CREATE(c2, 'C');
+    CREATE(t2, 'T');
+    CREATE(h1, 'H');
+    CREATE(d1, 'D');
+    CREATE(d2, 'D');
+    CREATE(m2, 'M');
+    std::vector<Node *> start_nodes = {p1, t2};
+    p1->edges = {{k1, 2}};
+    k1->edges = {{m1, 2}};
+    m1->edges = {{c1, 1}, {d1, 2}};
+    c1->edges = {{v1, 1}};
+    v1->edges = {{r1, 2}};
+    r1->edges = {{p2, 1}, {n1, 2}};
+    p2->edges = {{q1, 1}};
+    q1->edges = {{k2, 1}};
+    k2->edges = {{n1, 1}};
+    n1->edges = {{e1, 2}};
+    e1->edges = {{t1, 2}};
+    t1->edges = {{c2, 3}, {d2, 1}};
+    t2->edges = {{h1, 1}, {e1, 3}};
+    h1->edges = {{k1, 1}};
+    d1->edges = {{v1, 1}};
+    d2->edges = {{m2, 1}};
+    auto concensus_nodes = FindConcensus(start_nodes);
+    std::string concensus_string;
+    for (auto *node : concensus_nodes) {
+      concensus_string += matrix.position_to_letter(node->letter);
+    }
+    assert(concensus_string == "PKMDVRPQKNETC");
+  }
+  {
+    CREATE(p1, 'P');
+    CREATE(k1, 'K');
+    CREATE(m1, 'M');
+    CREATE(c1, 'C');
+    CREATE(v1, 'V');
+    CREATE(r1, 'R');
+    CREATE(p2, 'P');
+    CREATE(q1, 'Q');
+    CREATE(k2, 'K');
+    CREATE(n1, 'N');
+    CREATE(e1, 'E');
+    CREATE(t1, 'T');
+    CREATE(c2, 'C');
+    CREATE(t2, 'T');
+    CREATE(h1, 'H');
+    CREATE(d1, 'D');
+    CREATE(d2, 'D');
+    CREATE(m2, 'M');
+    std::vector<Node *> start_nodes = {p1, t2};
+    p1->edges = {{k1, 2}};
+    k1->edges = {{m1, 2}};
+    m1->edges = {{c1, 1}, {d1, 2}};
+    c1->edges = {{v1, 1}};
+    v1->edges = {{r1, 2}};
+    r1->edges = {{p2, 1}, {n1, 2}};
+    p2->edges = {{q1, 1}};
+    q1->edges = {{k2, 1}};
+    k2->edges = {{n1, 1}};
+    n1->edges = {{e1, 2}};
+    e1->edges = {{t1, 2}};
+    t1->edges = {{c2, 3}, {d2, 1}};
+    t2->edges = {{h1, 1}};
+    h1->edges = {{k1, 1}};
+    d1->edges = {{v1, 1}};
+    d2->edges = {{m2, 1}};
+    auto concensus_nodes = FindConcensus(start_nodes);
+    std::string concensus_string;
+    for (auto *node : concensus_nodes) {
+      concensus_string += matrix.position_to_letter(node->letter);
+    }
+    assert(concensus_string == "PKMDVRNETC");
+  }
+}
+
+int main() {
+  const char matrix_path[] = "data/matrix/blosum50.mat";
+  std::vector<std::unique_ptr<Node>> storage;
+  ScoreMatrix matrix(ReadFile(matrix_path));
+  TestAlignSequenceToGraph(matrix, storage);
   printf("OK!\n");
   return 0;
 }

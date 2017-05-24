@@ -161,4 +161,62 @@ void AlignSequenceToGraph(Graph &graph, Sequence sequence,
   graph.InsertSequence(sequence_node,
                        sequence.sequence.substr(prev_state.first + 1));
 }
+
+std::vector<Node *> FindConcensus(const std::vector<Node *> &start_nodes) {
+  std::vector<Node *> nodes = TopologicalSort(start_nodes);
+  if (nodes.size() == 0U) return std::vector<Node *>();
+  std::unordered_map<Node *, Node *> predecessors;
+  std::unordered_map<Node *, int> scores;
+
+  auto find_max_score_node =
+      [&](const std::vector<Node *> &nodes, Node *node_on_path) {
+        if (node_on_path) {
+          for (auto *node : nodes) {
+            predecessors[node] = nullptr;
+          }
+          for (auto score : scores) {
+            if (score.first != node_on_path) {
+              scores[score.first] = -1;
+            }
+          }
+          for (auto edge : node_on_path->edges) {
+            predecessors[edge.first] = node_on_path;
+            scores[edge.first] = edge.second;
+          }
+        }
+
+        Node *max_score_node = nullptr;
+        for (auto *node : nodes) {
+          if (scores[node] < 0) continue;
+          scores[node] += scores[predecessors[node]];
+          if (scores[node] > scores[max_score_node]) {
+            max_score_node = node;
+          }
+          for (auto edge : node->edges) {
+            if (scores[edge.first] < edge.second ||
+                (scores[edge.first] == edge.second &&
+                 scores[predecessors[edge.first]] < scores[node])) {
+              scores[edge.first] = edge.second;
+              predecessors[edge.first] = node;
+            }
+          }
+        }
+        assert(max_score_node);
+        return max_score_node;
+      };
+
+  auto *max_score_node = find_max_score_node(nodes, nullptr);
+  while (max_score_node->edges.size()) {
+    nodes.erase(nodes.begin(),
+                std::find(nodes.begin(), nodes.end(), max_score_node) + 1);
+    max_score_node = find_max_score_node(nodes, max_score_node);
+  }
+
+  std::vector<Node *> concensus_nodes;
+  for (auto *node = max_score_node; node; node = predecessors[node]) {
+    concensus_nodes.push_back(node);
+  }
+  std::reverse(concensus_nodes.begin(), concensus_nodes.end());
+  return concensus_nodes;
+}
 }
