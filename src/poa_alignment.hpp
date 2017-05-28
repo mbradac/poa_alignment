@@ -15,14 +15,24 @@ struct Node {
   std::vector<std::pair<Node *, int>> edges;
 };
 
+class NodeStorage {
+ public:
+  Node *AddNode(int letter) {
+    storage_.emplace_back(new Node(letter));
+    return storage_.back().get();
+  }
+
+ private:
+  std::vector<std::unique_ptr<Node>> storage_;
+};
+
 class Graph {
  public:
+  // Storage must outlive Graph.
+  Graph(NodeStorage *storage, Sequence sequence, const ScoreMatrix &matrix);
   std::vector<Node *> start_nodes;
 
-  Node *AddNode(int letter) {
-    storage.emplace_back(new Node(letter));
-    return storage.back().get();
-  }
+  Node *AddNode(int letter) { return storage_.AddNode(letter); }
 
   Node *AddStartNode(int letter) {
     Node *node = AddNode(letter);
@@ -37,10 +47,10 @@ class Graph {
         return {edge.first, false};
       }
     }
-    auto *new_node = AddNode(letter);
+    auto *new_node = storage_.AddNode(letter);
     from->edges.emplace_back(new_node, 1);
     return {new_node, true};
-  };
+  }
 
   Node *InsertSequence(Node *prev, std::string sequence) {
     if (sequence.size() == 0U) return nullptr;
@@ -52,10 +62,10 @@ class Graph {
       prev = AddEdge(prev, c).first;
     }
     return prev;
-  };
+  }
 
  private:
-  std::vector<std::unique_ptr<Node>> storage;
+  NodeStorage &storage_;
 };
 
 std::vector<Node *> TopologicalSort(const std::vector<Node *> &start_nodes);

@@ -58,14 +58,14 @@ std::vector<Node *> TopologicalSort(const std::vector<Node *> &start_nodes) {
   return sorted;
 }
 
-Graph GraphFromSequence(Sequence sequence, const ScoreMatrix &matrix) {
+Graph::Graph(NodeStorage *storage, Sequence sequence, const ScoreMatrix &matrix)
+    : storage_(*storage) {
   TranslateSequence(&sequence, matrix);
   assert(sequence.sequence.size());
-  Graph graph;
-  graph.InsertSequence(nullptr, sequence.sequence);
-  return graph;
+  InsertSequence(nullptr, sequence.sequence);
 }
 
+// Local alignment.
 void AlignSequenceToGraph(Graph &graph, Sequence sequence,
                           const ScoreMatrix &matrix, int gap_penalty) {
   if (!sequence.sequence.size()) return;

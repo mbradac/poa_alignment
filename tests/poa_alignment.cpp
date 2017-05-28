@@ -55,7 +55,8 @@ void Run(const std::string &s1, const std::string &s2,
   sequence2.sequence = s2;
   const char matrix_path[] = "data/matrix/blosum50.mat";
   ScoreMatrix matrix(ReadFile(matrix_path));
-  auto graph = GraphFromSequence(sequence1, matrix);
+  NodeStorage storage;
+  Graph graph(&storage, sequence1, matrix);
   AlignSequenceToGraph(graph, sequence2, matrix, 1);
   std::unordered_map<Node *, Node *> visited;
   assert(graph.start_nodes.size() == expected_graph.size());
@@ -178,6 +179,7 @@ void TestAlignSequenceToGraph(const ScoreMatrix &matrix,
     d2->edges = {{m2, 1}};
     Run("PKMCVRPQKNETC", "THKMDVRNETDM", start_nodes);
   }
+  printf("TestAlignSequenceToGraph OK!\n");
 }
 
 void TestFindConcensus(const ScoreMatrix &matrix,
@@ -268,6 +270,7 @@ void TestFindConcensus(const ScoreMatrix &matrix,
     }
     assert(concensus_string == "PKMDVRNETC");
   }
+  printf("TestFindConcensus OK!\n");
 }
 
 int main() {
@@ -275,6 +278,7 @@ int main() {
   std::vector<std::unique_ptr<Node>> storage;
   ScoreMatrix matrix(ReadFile(matrix_path));
   TestAlignSequenceToGraph(matrix, storage);
+  TestFindConcensus(matrix, storage);
   printf("OK!\n");
   return 0;
 }
