@@ -48,16 +48,18 @@ void Check(Node *n1, Node *n2, std::unordered_map<Node *, Node *> &visited) {
 }
 
 void Run(const std::string &s1, const std::string &s2,
-         std::vector<Node *> expected_graph) {
-  Sequence sequence1;
-  sequence1.sequence = s1;
-  Sequence sequence2;
-  sequence2.sequence = s2;
+         std::vector<Node *> expected_graph, std::vector<int> weights) {
   const char matrix_path[] = "data/matrix/blosum50.mat";
   ScoreMatrix matrix(ReadFile(matrix_path));
+  Sequence sequence1;
+  sequence1.sequence = s1;
+  TranslateSequence(&sequence1, matrix);
+  Sequence sequence2;
+  sequence2.sequence = s2;
+  TranslateSequence(&sequence2, matrix);
   NodeStorage storage;
-  Graph graph(&storage, sequence1, matrix);
-  AlignSequenceToGraph(graph, sequence2, matrix, 1);
+  Graph graph(&storage, sequence1);
+  AlignSequenceToGraph(graph, sequence2, weights, matrix, 1);
   std::unordered_map<Node *, Node *> visited;
   assert(graph.start_nodes.size() == expected_graph.size());
   auto cmp =
@@ -68,6 +70,10 @@ void Run(const std::string &s1, const std::string &s2,
     Check(graph.start_nodes[i], expected_graph[i], visited);
   }
 }
+
+void Run(const std::string &s1, const std::string &s2,
+         std::vector<Node *> expected_graph) {
+  Run(s1, s2, expected_graph, std::vector<int>(s2.size() - 1, 1));
 }
 
 #define CREATE(VAR, LETTER)                                              \
@@ -179,6 +185,45 @@ void TestAlignSequenceToGraph(const ScoreMatrix &matrix,
     d2->edges = {{m2, 1}};
     Run("PKMCVRPQKNETC", "THKMDVRNETDM", start_nodes);
   }
+  {
+    std::vector<int> weights = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    CREATE(p1, 'P');
+    CREATE(k1, 'K');
+    CREATE(m1, 'M');
+    CREATE(c1, 'C');
+    CREATE(v1, 'V');
+    CREATE(r1, 'R');
+    CREATE(p2, 'P');
+    CREATE(q1, 'Q');
+    CREATE(k2, 'K');
+    CREATE(n1, 'N');
+    CREATE(e1, 'E');
+    CREATE(t1, 'T');
+    CREATE(c2, 'C');
+    CREATE(t2, 'T');
+    CREATE(h1, 'H');
+    CREATE(d1, 'D');
+    CREATE(d2, 'D');
+    CREATE(m2, 'M');
+    std::vector<Node *> start_nodes = {p1, t2};
+    p1->edges = {{k1, 1}};
+    k1->edges = {{m1, 4}};
+    m1->edges = {{c1, 1}, {d1, 4}};
+    c1->edges = {{v1, 1}};
+    v1->edges = {{r1, 7}};
+    r1->edges = {{p2, 1}, {n1, 7}};
+    p2->edges = {{q1, 1}};
+    q1->edges = {{k2, 1}};
+    k2->edges = {{n1, 1}};
+    n1->edges = {{e1, 9}};
+    e1->edges = {{t1, 10}};
+    t1->edges = {{c2, 1}, {d2, 10}};
+    t2->edges = {{h1, 1}};
+    h1->edges = {{k1, 2}};
+    d1->edges = {{v1, 5}};
+    d2->edges = {{m2, 11}};
+    Run("PKMCVRPQKNETC", "THKMDVRNETDM", start_nodes, weights);
+  }
   printf("TestAlignSequenceToGraph OK!\n");
 }
 
@@ -271,6 +316,7 @@ void TestFindConcensus(const ScoreMatrix &matrix,
     assert(concensus_string == "PKMDVRNETC");
   }
   printf("TestFindConcensus OK!\n");
+}
 }
 
 int main() {

@@ -58,19 +58,20 @@ std::vector<Node *> TopologicalSort(const std::vector<Node *> &start_nodes) {
   return sorted;
 }
 
-Graph::Graph(NodeStorage *storage, Sequence sequence, const ScoreMatrix &matrix)
+Graph::Graph(NodeStorage *storage, Sequence sequence,
+             const std::vector<int> &weights)
     : storage_(*storage) {
-  TranslateSequence(&sequence, matrix);
   assert(sequence.sequence.size());
-  InsertSequence(nullptr, sequence.sequence);
+  InsertSequence(nullptr, sequence.sequence, weights);
 }
 
 // Local alignment.
 void AlignSequenceToGraph(Graph &graph, Sequence sequence,
-                          const ScoreMatrix &matrix, int gap_penalty) {
+                          std::vector<int> weights, const ScoreMatrix &matrix,
+                          int gap_penalty) {
   if (!sequence.sequence.size()) return;
+  assert(weights.size() + 1 == sequence.sequence.size());
   assert(gap_penalty >= 0);
-  TranslateSequence(&sequence, matrix);
   std::vector<Node *> nodes = TopologicalSort(graph.start_nodes);
   using State = std::pair<int, Node *>;
   std::unordered_map<State, int> dp;
@@ -119,13 +120,18 @@ void AlignSequenceToGraph(Graph &graph, Sequence sequence,
 
   if (alignment_states.size() == 0U) {
     // No alignment, insert whole sequence.
-    graph.InsertSequence(nullptr, sequence.sequence);
+    graph.InsertSequence(nullptr, sequence.sequence, weights);
     return;
   }
 
   // Insert unmatched beggining of the sequence.
-  auto *sequence_node = graph.InsertSequence(
-      nullptr, sequence.sequence.substr(0, alignment_states[0].first));
+  auto *sequence_node = [&]() -> Node *{
+    if (!alignment_states[0].first) return nullptr;
+    return graph.InsertSequence(
+        nullptr, sequence.sequence.substr(0, alignment_states[0].first),
+        std::vector<int>(weights.begin(),
+                         weights.begin() + alignment_states[0].first - 1));
+  }();
 
   // Insert nodes for the matched part.
   State prev_state(alignment_states[0].first - 1, nullptr);
@@ -137,7 +143,8 @@ void AlignSequenceToGraph(Graph &graph, Sequence sequence,
         // sequence.
         sequence_node = state.second;
       } else if (sequence_node == prev_state.second) {
-        auto got = graph.AddEdge(sequence_node, sequence.sequence[state.first]);
+        auto got = graph.AddEdge(sequence_node, sequence.sequence[state.first],
+                                 weights[state.first - 1]);
         sequence_node = got.first;
       } else {
         auto *next_node = [&]() {
@@ -147,19 +154,21 @@ void AlignSequenceToGraph(Graph &graph, Sequence sequence,
           }
           return graph.AddNode(letter);
         }();
-        sequence_node->edges.emplace_back(next_node, 1);
+        sequence_node->edges.emplace_back(next_node, weights[state.first - 1]);
         sequence_node = next_node;
       }
     } else if (state.first != prev_state.first) {
-      auto got = graph.AddEdge(sequence_node, sequence.sequence[state.first]);
+      auto got = graph.AddEdge(sequence_node, sequence.sequence[state.first],
+                               weights[state.first - 1]);
       assert(got.second);
       sequence_node = got.first;
     }
     prev_state = state;
   }
 
-  graph.InsertSequence(sequence_node,
-                       sequence.sequence.substr(prev_state.first + 1));
+  graph.InsertSequence(
+      sequence_node, sequence.sequence.substr(prev_state.first + 1),
+      std::vector<int>(weights.begin() + prev_state.first, weights.end()));
 }
 
 std::vector<Node *> FindConcensus(const std::vector<Node *> &start_nodes) {

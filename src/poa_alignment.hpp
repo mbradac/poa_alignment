@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <memory>
+#include <cassert>
 
 #include "sequence.hpp"
 
@@ -28,9 +29,17 @@ class NodeStorage {
 
 class Graph {
  public:
-  // Storage must outlive Graph.
-  Graph(NodeStorage *storage, Sequence sequence, const ScoreMatrix &matrix);
   std::vector<Node *> start_nodes;
+
+  // Storage must outlive Graph.
+  Graph(NodeStorage *storage, Sequence sequence)
+      : Graph(storage, sequence, [&]() {
+          assert(sequence.sequence.size());
+          return std::vector<int>(
+              static_cast<int>(sequence.sequence.size()) - 1, 1);
+        }()) {}
+  Graph(NodeStorage *storage, Sequence sequence,
+        const std::vector<int> &weights);
 
   Node *AddNode(int letter) { return storage_.AddNode(letter); }
 
@@ -40,26 +49,31 @@ class Graph {
     return node;
   }
 
-  std::pair<Node *, bool> AddEdge(Node *from, int letter) {
+  std::pair<Node *, bool> AddEdge(Node *from, int letter, int weight) {
     for (auto &edge : from->edges) {
       if (edge.first->letter == letter) {
-        edge.second += 1;
+        edge.second += weight;
         return {edge.first, false};
       }
     }
     auto *new_node = storage_.AddNode(letter);
-    from->edges.emplace_back(new_node, 1);
+    from->edges.emplace_back(new_node, weight);
     return {new_node, true};
   }
 
-  Node *InsertSequence(Node *prev, std::string sequence) {
+  Node *InsertSequence(Node *prev, std::string sequence,
+                       const std::vector<int> &weights) {
     if (sequence.size() == 0U) return nullptr;
     if (!prev) {
       prev = AddStartNode(sequence[0]);
+      assert(weights.size() + 1 == sequence.size());
       sequence = sequence.substr(1);
+    } else {
+      assert(weights.size() == sequence.size());
     }
-    for (char c : sequence) {
-      prev = AddEdge(prev, c).first;
+    int n = sequence.size();
+    for (int i = 0; i < n; ++i) {
+      prev = AddEdge(prev, sequence[i], weights[i]).first;
     }
     return prev;
   }
@@ -70,10 +84,9 @@ class Graph {
 
 std::vector<Node *> TopologicalSort(const std::vector<Node *> &start_nodes);
 
-Graph GraphFromSequence(Sequence sequence, const ScoreMatrix &matrix);
-
 void AlignSequenceToGraph(Graph &graph, Sequence sequence,
-                          const ScoreMatrix &matrix, int gap_penalty);
+                          std::vector<int> weights, const ScoreMatrix &matrix,
+                          int gap_penalty);
 
 std::vector<Node *> FindConcensus(const std::vector<Node *> &start_nodes);
 }
