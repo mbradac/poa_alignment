@@ -18,6 +18,7 @@ struct hash<std::pair<int, poa_alignment::Node *>> {
 }
 
 namespace poa_alignment {
+using State = std::pair<int, Node *>;
 
 std::vector<Node *> TopologicalSort(const std::vector<Node *> &start_nodes) {
   // Find number of incoming edges for every node.
@@ -65,15 +66,11 @@ Graph::Graph(NodeStorage *storage, Sequence sequence,
   InsertSequence(nullptr, sequence.sequence, weights);
 }
 
-// Local alignment.
-void AlignSequenceToGraph(Graph &graph, Sequence sequence,
-                          std::vector<int> weights, const ScoreMatrix &matrix,
-                          int gap_penalty) {
-  if (!sequence.sequence.size()) return;
-  assert(weights.size() + 1 == sequence.sequence.size());
+auto CalculateAlignment(const std::vector<Node *> nodes,
+                        const std::vector<Node *> start_nodes,
+                        Sequence sequence, const ScoreMatrix &matrix,
+                        int gap_penalty) {
   assert(gap_penalty >= 0);
-  std::vector<Node *> nodes = TopologicalSort(graph.start_nodes);
-  using State = std::pair<int, Node *>;
   std::unordered_map<State, int> dp;
   std::unordered_map<State, State> prev;
   auto update = [&](int next_i, Node *next_node, int i, Node *node, int d) {
@@ -85,8 +82,8 @@ void AlignSequenceToGraph(Graph &graph, Sequence sequence,
     }
   };
 
-  // Smith waterman.
-  for (Node *start_node : graph.start_nodes) {
+  // Calculate alignment.
+  for (Node *start_node : start_nodes) {
     auto score = matrix.get_score(sequence.sequence[0], start_node->letter);
     dp[{0, start_node}] = std::max(0, score);
   }
@@ -117,6 +114,20 @@ void AlignSequenceToGraph(Graph &graph, Sequence sequence,
     state = prev[state];
   }
   std::reverse(alignment_states.begin(), alignment_states.end());
+
+  return alignment_states;
+}
+
+// Local alignment.
+void AlignSequenceToGraph(Graph &graph, Sequence sequence,
+                          std::vector<int> weights, const ScoreMatrix &matrix,
+                          int gap_penalty) {
+  if (!sequence.sequence.size()) return;
+  assert(weights.size() + 1 == sequence.sequence.size());
+  std::vector<Node *> nodes = TopologicalSort(graph.start_nodes);
+
+  auto alignment_states = CalculateAlignment(nodes, graph.start_nodes, sequence,
+                                             matrix, gap_penalty);
 
   if (alignment_states.size() == 0U) {
     // No alignment, insert whole sequence.
