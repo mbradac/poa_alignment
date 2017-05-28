@@ -48,7 +48,8 @@ void Check(Node *n1, Node *n2, std::unordered_map<Node *, Node *> &visited) {
 }
 
 void Run(const std::string &s1, const std::string &s2,
-         std::vector<Node *> expected_graph, std::vector<int> weights) {
+         std::vector<Node *> expected_graph, std::vector<int> weights,
+         std::vector<Node *> expected_path) {
   const char matrix_path[] = "data/matrix/blosum50.mat";
   ScoreMatrix matrix(ReadFile(matrix_path));
   Sequence sequence1;
@@ -59,21 +60,28 @@ void Run(const std::string &s1, const std::string &s2,
   TranslateSequence(&sequence2, matrix);
   NodeStorage storage;
   Graph graph(&storage, sequence1);
-  AlignSequenceToGraph(graph, sequence2, weights, matrix, 1);
+  auto path = AlignSequenceToGraph(graph, sequence2, weights, matrix, 1);
   std::unordered_map<Node *, Node *> visited;
   assert(graph.start_nodes.size() == expected_graph.size());
   auto cmp =
       [](const Node *n1, const Node *n2) { return n1->letter < n2->letter; };
-  sort(graph.start_nodes.begin(), graph.start_nodes.end(), cmp);
-  sort(expected_graph.begin(), expected_graph.end(), cmp);
+  std::sort(graph.start_nodes.begin(), graph.start_nodes.end(), cmp);
+  std::sort(expected_graph.begin(), expected_graph.end(), cmp);
   for (int i = 0; i < static_cast<int>(graph.start_nodes.size()); ++i) {
     Check(graph.start_nodes[i], expected_graph[i], visited);
   }
+  assert(path.size() == expected_path.size());
+  for (int i = 0; i < static_cast<int>(expected_path.size()); ++i) {
+    assert(visited[path[i]] == expected_path[i]);
+  }
+  (void)expected_path;
 }
 
 void Run(const std::string &s1, const std::string &s2,
-         std::vector<Node *> expected_graph) {
-  Run(s1, s2, expected_graph, std::vector<int>(s2.size() - 1, 1));
+         std::vector<Node *> expected_graph,
+         std::vector<Node *> expected_path) {
+  Run(s1, s2, expected_graph, std::vector<int>(s2.size() - 1, 1),
+      expected_path);
 }
 
 #define CREATE(VAR, LETTER)                                              \
@@ -94,7 +102,7 @@ void TestAlignSequenceToGraph(const ScoreMatrix &matrix,
     d2->edges = {{d3, 1}};
     c1->edges = {{c2, 1}};
     c2->edges = {{p1, 1}};
-    Run("DDD", "CCP", start_nodes);
+    Run("DDD", "CCP", start_nodes, {c1, c2, p1});
   }
   {
     CREATE(p1, 'P');
@@ -112,7 +120,7 @@ void TestAlignSequenceToGraph(const ScoreMatrix &matrix,
     t2->edges = {{t3, 1}};
     k1->edges = {{k2, 1}};
     k2->edges = {{k3, 1}};
-    Run("PPTTT", "PPKKK", start_nodes);
+    Run("PPTTT", "PPKKK", start_nodes, {p1, p2, k1, k2, k3});
   }
   {
     CREATE(p1, 'P');
@@ -123,7 +131,7 @@ void TestAlignSequenceToGraph(const ScoreMatrix &matrix,
     p1->edges = {{d1, 1}, {c1, 1}};
     d1->edges = {{m1, 1}};
     c1->edges = {{m1, 1}};
-    Run("PDM", "PCM", start_nodes);
+    Run("PDM", "PCM", start_nodes, {p1, c1, m1});
   }
   {
     CREATE(p1, 'P');
@@ -132,7 +140,7 @@ void TestAlignSequenceToGraph(const ScoreMatrix &matrix,
     std::vector<Node *> start_nodes = {p1};
     p1->edges = {{p2, 1}};
     p2->edges = {{c1, 2}};
-    Run("PPC", "PC", start_nodes);
+    Run("PPC", "PC", start_nodes, {p2, c1});
   }
   {
     CREATE(d1, 'D');
@@ -145,7 +153,7 @@ void TestAlignSequenceToGraph(const ScoreMatrix &matrix,
     d2->edges = {{p1, 1}};
     c1->edges = {{c2, 1}};
     c2->edges = {{p1, 1}};
-    Run("DDP", "CCP", start_nodes);
+    Run("DDP", "CCP", start_nodes, {c1, c2, p1});
   }
   {
     CREATE(p1, 'P');
@@ -183,7 +191,8 @@ void TestAlignSequenceToGraph(const ScoreMatrix &matrix,
     h1->edges = {{k1, 1}};
     d1->edges = {{v1, 1}};
     d2->edges = {{m2, 1}};
-    Run("PKMCVRPQKNETC", "THKMDVRNETDM", start_nodes);
+    Run("PKMCVRPQKNETC", "THKMDVRNETDM", start_nodes,
+        {t2, h1, k1, m1, d1, v1, r1, n1, e1, t1, d2, m2});
   }
   {
     std::vector<int> weights = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
@@ -222,7 +231,8 @@ void TestAlignSequenceToGraph(const ScoreMatrix &matrix,
     h1->edges = {{k1, 2}};
     d1->edges = {{v1, 5}};
     d2->edges = {{m2, 11}};
-    Run("PKMCVRPQKNETC", "THKMDVRNETDM", start_nodes, weights);
+    Run("PKMCVRPQKNETC", "THKMDVRNETDM", start_nodes, weights,
+        {t2, h1, k1, m1, d1, v1, r1, n1, e1, t1, d2, m2});
   }
   printf("TestAlignSequenceToGraph OK!\n");
 }

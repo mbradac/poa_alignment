@@ -61,11 +61,15 @@ class Graph {
     return {new_node, true};
   }
 
-  Node *InsertSequence(Node *prev, std::string sequence,
-                       const std::vector<int> &weights) {
-    if (sequence.size() == 0U) return nullptr;
+  void RemovePath(const std::vector<Node *> &_path);
+
+  std::vector<Node *> InsertSequence(Node *prev, std::string sequence,
+                                     const std::vector<int> &weights) {
+    std::vector<Node *> sequence_nodes;
+    if (sequence.size() == 0U) return {};
     if (!prev) {
       prev = AddStartNode(sequence[0]);
+      sequence_nodes.push_back(prev);
       assert(weights.size() + 1 == sequence.size());
       sequence = sequence.substr(1);
     } else {
@@ -74,8 +78,9 @@ class Graph {
     int n = sequence.size();
     for (int i = 0; i < n; ++i) {
       prev = AddEdge(prev, sequence[i], weights[i]).first;
+      sequence_nodes.push_back(prev);
     }
-    return prev;
+    return sequence_nodes;
   }
 
  private:
@@ -84,9 +89,12 @@ class Graph {
 
 std::vector<Node *> TopologicalSort(const std::vector<Node *> &start_nodes);
 
-void AlignSequenceToGraph(Graph &graph, Sequence sequence,
-                          std::vector<int> weights, const ScoreMatrix &matrix,
-                          int gap_penalty);
+// void AlignGraphToGraph(Graph &graph1, Graph &graph2);
+
+std::vector<Node *> AlignSequenceToGraph(Graph &graph, Sequence sequence,
+                                         std::vector<int> weights,
+                                         const ScoreMatrix &matrix,
+                                         int gap_penalty);
 
 std::vector<Node *> FindConcensus(const std::vector<Node *> &start_nodes);
 }
