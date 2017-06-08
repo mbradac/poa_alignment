@@ -9,11 +9,14 @@
 
 namespace poa_alignment {
 
+// TODO: fix api
+
 struct Node {
   Node(char letter) : letter(letter) {}
   char letter = -1;
   // Next node and weight.
   std::vector<std::pair<Node *, int>> edges;
+  bool marked = false;
 };
 
 class NodeStorage {
@@ -27,8 +30,10 @@ class NodeStorage {
   std::vector<std::unique_ptr<Node>> storage_;
 };
 
+// TODO: separate implementation to cpp file
 class Graph {
  public:
+  // TODO: make this private
   std::vector<Node *> start_nodes;
 
   // Storage must outlive Graph.
@@ -40,6 +45,8 @@ class Graph {
         }()) {}
   Graph(NodeStorage *storage, Sequence sequence,
         const std::vector<int> &weights);
+  // TODO: remove this constructor.
+  Graph(NodeStorage *storage) : storage_(*storage){};
 
   Node *AddNode(int letter) { return storage_.AddNode(letter); }
 
@@ -89,7 +96,8 @@ class Graph {
 
 std::vector<Node *> TopologicalSort(const std::vector<Node *> &start_nodes);
 
-// void AlignGraphToGraph(Graph &graph1, Graph &graph2);
+void AlignGraphToGraph(Graph &graph1, Graph &graph2, const ScoreMatrix &matrix,
+                       int gap_penalty);
 
 std::vector<Node *> AlignSequenceToGraph(Graph &graph, Sequence sequence,
                                          std::vector<int> weights,

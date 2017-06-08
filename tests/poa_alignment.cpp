@@ -6,6 +6,7 @@
 #include <stack>
 #include <unordered_map>
 #include <algorithm>
+#include <iostream>
 
 #include "sequence.hpp"
 #include "poa_alignment.hpp"
@@ -327,14 +328,197 @@ void TestFindConcensus(const ScoreMatrix &matrix,
   }
   printf("TestFindConcensus OK!\n");
 }
+
+void TestGraphDisassemble(const ScoreMatrix &matrix,
+                          std::vector<std::unique_ptr<Node>> &storage) {
+  auto RemovePath =
+      [](const std::vector<Node *> &path, std::vector<Node *> &start_nodes) {
+        if (!path.size()) return;
+
+        std::stack<Node *> jobs;
+        std::unordered_map<Node *, int> remaining_edges;
+        for (auto *start_node : start_nodes) {
+          jobs.push(start_node);
+        }
+        while (!jobs.empty()) {
+          auto *node = jobs.top();
+          jobs.pop();
+          for (auto _next : node->edges) {
+            auto *next = _next.first;
+            bool visited = remaining_edges[next];
+            remaining_edges[next] += 1;
+            if (!visited) {
+              jobs.push(next);
+            }
+          }
+        }
+
+        int n = path.size();
+        for (int i = 0; i < n; ++i) {
+          path[i]->marked = true;
+        }
+        for (int i = 0; i < n - 1; ++i) {
+          auto it = std::find_if(
+              path[i]->edges.begin(), path[i]->edges.end(),
+              [&](std::pair<Node *, int> a) { return a.first == path[i + 1]; });
+          assert(it != path[i]->edges.end());
+          path[i]->edges.erase(it);
+          if (remaining_edges[it->first] == 1) {
+            start_nodes.push_back(it->first);
+          }
+        }
+      };
+
+  auto chain_to_sequence_weight = [](const std::vector<Node *> &chain) {
+    Sequence sequence;
+    std::vector<int> weights;
+    int n = chain.size();
+    for (int i = 0; i < n; ++i) {
+      sequence.sequence += chain[i]->letter;
+      if (i + 1 == n) continue;
+      for (auto edge : chain[i]->edges) {
+        if (edge.first == chain[i + 1]) {
+          weights.push_back(edge.second);
+        }
+      }
+    }
+    assert(weights.size() + 1 == sequence.sequence.size());
+    return std::make_pair(sequence, weights);
+  };
+  {
+    CREATE(n2, 'G');
+    CREATE(n3, 'T');
+    CREATE(n4, 'C');
+    CREATE(n9, 'C');
+    CREATE(n5, 'A');
+    CREATE(n6, 'T');
+    CREATE(n0, 'C');
+    CREATE(n1, 'C');
+    CREATE(n7, 'G');
+    CREATE(n8, 'G');
+    n0->edges = {{n1, 1}};
+    n1->edges = {{n2, 3}};
+    n2->edges = {{n3, 3}, {n9, 1}, {n7, 1}};
+    n4->edges = {{n3, 2}};
+    n9->edges = {{n4, 1}};
+    n5->edges = {{n6, 3}};
+    n6->edges = {{n2, 2}};
+    n7->edges = {{n8, 1}};
+    std::vector<Node *> start_nodes = {n0, n5};
+
+    int j = 0;
+    std::vector<std::string> expected_concensus = {"CCGT", "ATG", "GCCT",
+                                                   "GGG"};
+    std::vector<std::vector<int>> weights = {
+        {1, 3, 3}, {3, 2}, {1, 1, 2}, {1, 1}};
+    while (true) {
+      auto concensus = FindConcensus(start_nodes);
+      if (concensus.size() <= 1U) break;
+      auto got = chain_to_sequence_weight(concensus);
+      std::string concensus_string;
+      for (auto c : got.first.sequence) {
+        concensus_string += matrix.position_to_letter(c);
+      }
+      assert(concensus_string == expected_concensus[j]);
+      assert(got.second == weights[j]);
+      RemovePath(concensus, start_nodes);
+      ++j;
+    }
+    assert(j == static_cast<int>(expected_concensus.size()));
+    printf("TestGraphDisassemble OK!\n");
+  }
+}
+#undef CREATE
+
+void TestAlignGraphToGraph(const ScoreMatrix &matrix) {
+  NodeStorage storage;
+
+  Graph g1(&storage);
+  auto n2 = storage.AddNode(matrix.get_position('G'));
+  auto n3 = storage.AddNode(matrix.get_position('T'));
+  auto n4 = storage.AddNode(matrix.get_position('C'));
+  auto n9 = storage.AddNode(matrix.get_position('C'));
+  auto n5 = storage.AddNode(matrix.get_position('A'));
+  auto n6 = storage.AddNode(matrix.get_position('T'));
+  auto n0 = storage.AddNode(matrix.get_position('C'));
+  auto n1 = storage.AddNode(matrix.get_position('C'));
+  auto n7 = storage.AddNode(matrix.get_position('G'));
+  auto n8 = storage.AddNode(matrix.get_position('G'));
+  n0->edges = {{n1, 1}};
+  n1->edges = {{n2, 3}};
+  n2->edges = {{n3, 3}, {n9, 1}, {n7, 1}};
+  n4->edges = {{n3, 2}};
+  n9->edges = {{n4, 1}};
+  n5->edges = {{n6, 3}};
+  n6->edges = {{n2, 2}};
+  n7->edges = {{n8, 1}};
+  g1.start_nodes = std::vector<Node *>{n0, n5};
+
+  Graph g2(&storage);
+  auto bn0 = storage.AddNode(matrix.get_position('C'));
+  auto bn1 = storage.AddNode(matrix.get_position('C'));
+  auto bn2 = storage.AddNode(matrix.get_position('G'));
+  auto bn3 = storage.AddNode(matrix.get_position('C'));
+  auto bn4 = storage.AddNode(matrix.get_position('T'));
+  auto bn5 = storage.AddNode(matrix.get_position('A'));
+  auto bn6 = storage.AddNode(matrix.get_position('T'));
+  auto bn7 = storage.AddNode(matrix.get_position('G'));
+  bn0->edges = {{bn1, 2}};
+  bn1->edges = {{bn2, 2}, {bn5, 1}};
+  bn2->edges = {{bn3, 3}, {bn7, 2}};
+  bn3->edges = {{bn4, 3}};
+  bn5->edges = {{bn6, 1}};
+  bn6->edges = {{bn3, 1}};
+  g2.start_nodes = std::vector<Node *>{bn0};
+
+  Graph g3(&storage);
+  auto cn0 = storage.AddNode(matrix.get_position('C'));
+  auto cn1 = storage.AddNode(matrix.get_position('C'));
+  auto cn2 = storage.AddNode(matrix.get_position('G'));
+  auto cn3 = storage.AddNode(matrix.get_position('C'));
+  auto cn4 = storage.AddNode(matrix.get_position('T'));
+  auto cn5 = storage.AddNode(matrix.get_position('A'));
+  auto cn6 = storage.AddNode(matrix.get_position('T'));
+  auto cn7 = storage.AddNode(matrix.get_position('G'));
+  auto cn8 = storage.AddNode(matrix.get_position('A'));
+  auto cn9 = storage.AddNode(matrix.get_position('T'));
+  auto cn10 = storage.AddNode(matrix.get_position('C'));
+  auto cn11 = storage.AddNode(matrix.get_position('G'));
+  cn0->edges = {{cn1, 3}};
+  cn1->edges = {{cn2, 5}, {cn5, 1}};
+  cn2->edges = {{cn3, 4}, {cn4, 3}, {cn7, 3}};
+  cn3->edges = {{cn4, 3}, {cn10, 1}};
+  cn5->edges = {{cn6, 1}};
+  cn6->edges = {{cn3, 1}};
+  cn8->edges = {{cn9, 3}};
+  cn9->edges = {{cn2, 2}};
+  cn10->edges = {{cn4, 2}};
+  cn7->edges = {{cn11, 1}};
+  g3.start_nodes = std::vector<Node *>{cn0, cn8};
+
+  AlignGraphToGraph(g2, g1, matrix, 1);
+
+  assert(g2.start_nodes.size() == g3.start_nodes.size());
+  auto cmp = [](Node *n, Node *m) { return n->letter < m->letter; };
+
+  std::sort(g2.start_nodes.begin(), g2.start_nodes.end(), cmp);
+  std::sort(g3.start_nodes.begin(), g3.start_nodes.end(), cmp);
+  std::unordered_map<Node *, Node *> visited;
+  for (int i = 0; i < static_cast<int>(g2.start_nodes.size()); ++i) {
+    Check(g2.start_nodes[i], g3.start_nodes[i], visited);
+  }
+  printf("TestAlignGraphToGraph OK!\n");
+}
 }
 
 int main() {
-  const char matrix_path[] = "data/matrix/blosum50.mat";
+  const char matrix_path[] = "data/matrix/blosum62.mat";
   std::vector<std::unique_ptr<Node>> storage;
   ScoreMatrix matrix(ReadFile(matrix_path));
   TestAlignSequenceToGraph(matrix, storage);
   TestFindConcensus(matrix, storage);
+  TestGraphDisassemble(matrix, storage);
+  TestAlignGraphToGraph(matrix);
   printf("OK!\n");
   return 0;
 }
