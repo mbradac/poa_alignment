@@ -80,6 +80,14 @@ std::vector<Node *> TopologicalSort(const std::vector<Node *> &start_nodes) {
     }
   }
 
+  {
+    // Sanity check.
+    for (auto *node : start_nodes) {
+      (void)node;
+      assert(remaining_edges.find(node) == remaining_edges.end());
+    }
+  }
+
   // Find topological sorting of graph.
   for (auto *start_node : start_nodes) {
     jobs.push(start_node);
@@ -96,6 +104,17 @@ std::vector<Node *> TopologicalSort(const std::vector<Node *> &start_nodes) {
       }
     }
   }
+
+  {
+    std::vector<Node *> nodes;
+    for (auto x : remaining_edges) {
+      if (x.second != 0) {
+        nodes.push_back(x.first);
+      }
+    }
+
+    assert(!nodes.size());
+  }
   return sorted;
 }
 
@@ -106,11 +125,13 @@ Graph::Graph(NodeStorage *storage, Sequence sequence,
   InsertSequence(nullptr, sequence.sequence, weights);
 }
 
-auto CalculateAlignment(const std::vector<Node *> nodes,
-                        const std::vector<Node *> start_nodes,
-                        Sequence sequence, const ScoreMatrix &matrix,
-                        int gap_penalty, AlignmentType type) {
+std::vector<std::pair<int, Node *>> CalculateAlignment(
+    const std::vector<Node *> &nodes, const std::vector<Node *> &start_nodes,
+    const Node *end_node, Sequence sequence, const ScoreMatrix &matrix,
+    int gap_penalty, AlignmentType type,
+    const std::unordered_set<Node *> &relevant) {
   assert(gap_penalty >= 0);
+  assert(sequence.sequence.size());
   std::unordered_map<State, int> dp;
   std::unordered_map<State, State> prev;
   auto update = [&](int next_i, Node *next_node, int i, Node *node, int d) {
@@ -120,7 +141,7 @@ auto CalculateAlignment(const std::vector<Node *> nodes,
     }
     auto new_score = dp[{i, node}] + d;
     auto &old_score = dp[{next_i, next_node}];
-    if (old_score < new_score) {
+    if (old_score < new_score && new_score > -1e8) {
       old_score = new_score;
       prev[{next_i, next_node}] = {i, node};
     }
@@ -134,11 +155,15 @@ auto CalculateAlignment(const std::vector<Node *> nodes,
     }
     dp[{0, start_node}] = std::max(dp[{0, start_node}], score);
   }
-  for (int i = 0; i < static_cast<int>(sequence.sequence.size()); ++i) {
-    for (auto *node : nodes) {
+  for (auto *node : nodes) {
+    if (!relevant.count(node)) continue;
+    for (int i = 0; i < static_cast<int>(sequence.sequence.size()); ++i) {
       for (auto next : node->edges) {
-        update(i, next.first, i - 1, next.first, -gap_penalty);
-        update(i, next.first, i, node, -gap_penalty);
+        // Force alignment.
+        if (next.first != end_node) {
+          update(i, next.first, i - 1, next.first, -gap_penalty);
+          update(i, next.first, i, node, -gap_penalty);
+        }
         update(i, next.first, i - 1, node,
                matrix.get_score(sequence.sequence[i], next.first->letter));
       }
@@ -175,6 +200,21 @@ auto CalculateAlignment(const std::vector<Node *> nodes,
   return alignment_states;
 }
 
+bool RelevantNodes(Node *node, Node *end_node,
+                   std::unordered_set<Node *> &relevant,
+                   std::unordered_set<Node *> &visited) {
+  if (visited.count(node)) return relevant.count(node);
+  visited.insert(node);
+  bool c = node == end_node || !end_node;
+  for (auto edge : node->edges) {
+    c |= RelevantNodes(edge.first, end_node, relevant, visited);
+  }
+  if (c) {
+    relevant.insert(node);
+  }
+  return c;
+}
+
 // TODO: This API is terrible, implement GraphView class to pass subgraph to
 // alignment function.
 std::vector<Node *> AlignSequenceToGraph(Graph &graph, Node *start_node,
@@ -192,8 +232,15 @@ std::vector<Node *> AlignSequenceToGraph(Graph &graph, Node *start_node,
     auto end_it =
         end_node ? std::next(std::find(nodes.begin(), nodes.end(), end_node))
                  : nodes.end();
+    if (begin_it - nodes.begin() + 1 >= end_it - nodes.begin()) {
+      return std::vector<Node *>{};
+    }
+    assert(begin_it != end_it);
     return std::vector<Node *>(begin_it, end_it);
   }();
+  if (nodes.empty()) {
+    return {};
+  }
   AlignmentType type = [&]() {
     if (start_node && end_node) return AlignmentType::FIXED;
     if (start_node) return AlignmentType::LEFT_FIXED;
@@ -203,8 +250,22 @@ std::vector<Node *> AlignSequenceToGraph(Graph &graph, Node *start_node,
   auto start_nodes =
       start_node ? std::vector<Node *>{start_node} : graph.start_nodes;
 
-  auto alignment_states = CalculateAlignment(nodes, start_nodes, sequence,
-                                             matrix, gap_penalty, type);
+  std::unordered_set<Node *> relevant;
+  std::unordered_set<Node *> visited;
+  for (auto x : start_nodes) {
+    RelevantNodes(x, end_node, relevant, visited);
+  }
+
+  auto alignment_states =
+      CalculateAlignment(nodes, start_nodes, end_node, sequence, matrix,
+                         gap_penalty, type, relevant);
+
+  if ((start_node && (alignment_states.empty() ||
+                      alignment_states[0].second != start_node)) ||
+      (end_node && (alignment_states.empty() ||
+                    alignment_states.back().second != end_node))) {
+    return {};
+  }
 
   if (alignment_states.size() == 0U) {
     // No alignment, insert whole sequence.
@@ -232,38 +293,31 @@ std::vector<Node *> AlignSequenceToGraph(Graph &graph, Node *start_node,
         // sequence.
         sequence_node = state.second;
         sequence_nodes.push_back(sequence_node);
-      } else if (sequence_node == prev_state.second) {
-        auto got = graph.AddEdge(sequence_node, sequence.sequence[state.first],
-                                 weights[state.first - 1]);
-        sequence_node = got.first;
-        sequence_nodes.push_back(sequence_node);
-      } else {
-        auto *next_node = [&]() {
-          int letter = sequence.sequence[state.first];
-          if (letter == state.second->letter) {
-            return state.second;
-          }
-          return graph.AddNode(letter);
-        }();
-        auto found = false;
+      } else if (sequence.sequence[state.first] == state.second->letter) {
+        bool found = false;
         for (auto &edge : sequence_node->edges) {
-          if (edge.first == next_node) {
+          if (edge.first == state.second) {
             edge.second += weights[state.first - 1];
             found = true;
+            break;
           }
         }
         if (!found) {
-          sequence_node->edges.emplace_back(next_node,
+          sequence_node->edges.emplace_back(state.second,
                                             weights[state.first - 1]);
         }
-        sequence_node = next_node;
+        sequence_node = state.second;
+        sequence_nodes.push_back(sequence_node);
+      } else {
+        auto *new_node = graph.AddNode(sequence.sequence[state.first]);
+        sequence_node->edges.emplace_back(new_node, weights[state.first - 1]);
+        sequence_node = new_node;
         sequence_nodes.push_back(sequence_node);
       }
     } else if (state.first != prev_state.first) {
-      auto got = graph.AddEdge(sequence_node, sequence.sequence[state.first],
-                               weights[state.first - 1]);
-      assert(got.second);
-      sequence_node = got.first;
+      auto *new_node = graph.AddNode(sequence.sequence[state.first]);
+      sequence_node->edges.emplace_back(new_node, weights[state.first - 1]);
+      sequence_node = new_node;
       sequence_nodes.push_back(sequence_node);
     }
     prev_state = state;
@@ -274,6 +328,7 @@ std::vector<Node *> AlignSequenceToGraph(Graph &graph, Node *start_node,
       sequence_node, sequence.sequence.substr(prev_state.first + 1),
       std::vector<int>(weights.begin() + prev_state.first, weights.end()));
   sequence_nodes.insert(sequence_nodes.end(), ending.begin(), ending.end());
+
   return sequence_nodes;
 }
 
@@ -336,11 +391,11 @@ std::vector<Node *> FindConcensus(const std::vector<Node *> &start_nodes) {
 
   auto *max_score_node = find_max_score_node(nodes, nullptr);
   if (!max_score_node) return {};
-  while (!max_score_node->marked && max_score_node->edges.size()) {
-    assert(max_score_node);
+  while (!max_score_node->marked && !max_score_node->edges.empty()) {
     nodes.erase(nodes.begin(),
                 std::find(nodes.begin(), nodes.end(), max_score_node) + 1);
     max_score_node = find_max_score_node(nodes, max_score_node);
+    assert(max_score_node);
   }
 
   std::vector<Node *> concensus_nodes;
@@ -379,6 +434,7 @@ void AlignGraphToGraph(Graph &graph1, Graph &graph2, const ScoreMatrix &matrix,
     if (concensus.size() <= 1U) break;
     auto got = chain_to_sequence_weight(concensus);
     graph2.RemovePath(concensus);
+    assert(concensus[0] != concensus.back());
     auto start_node_it = graph_nodes_mapping.find(concensus[0]);
     Node *start_node = start_node_it == graph_nodes_mapping.end()
                            ? nullptr
@@ -391,7 +447,11 @@ void AlignGraphToGraph(Graph &graph1, Graph &graph2, const ScoreMatrix &matrix,
     // start and end node
     auto path = AlignSequenceToGraph(graph1, start_node, end_node, got.first,
                                      got.second, matrix, gap_penalty);
+    if (path.empty()) continue;
     assert(concensus.size() == path.size());
+    assert(!start_node || path[0] == start_node);
+    assert(!end_node || path.back() == end_node);
+    assert(path[0] != path.back());
     for (int i = 0; i < static_cast<int>(path.size()); ++i) {
       graph_nodes_mapping[concensus[i]] = path[i];
     }

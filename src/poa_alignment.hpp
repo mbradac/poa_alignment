@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <cassert>
+#include <unordered_map>
 
 #include "sequence.hpp"
 
@@ -86,6 +87,14 @@ class Graph {
     for (int i = 0; i < n; ++i) {
       prev = AddEdge(prev, sequence[i], weights[i]).first;
       sequence_nodes.push_back(prev);
+    }
+    for (int i = 1; i < static_cast<int>(sequence_nodes.size()); ++i) {
+      for (auto it = start_nodes.begin(); it != start_nodes.end(); ++it) {
+        if (*it == sequence_nodes[i]) {
+          start_nodes.erase(it);
+          break;
+        }
+      }
     }
     return sequence_nodes;
   }

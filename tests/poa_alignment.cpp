@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <algorithm>
 #include <iostream>
+#include <cstdlib>
 
 #include "sequence.hpp"
 #include "poa_alignment.hpp"
@@ -75,7 +76,6 @@ void Run(const std::string &s1, const std::string &s2,
   for (int i = 0; i < static_cast<int>(expected_path.size()); ++i) {
     assert(visited[path[i]] == expected_path[i]);
   }
-  (void)expected_path;
 }
 
 void Run(const std::string &s1, const std::string &s2,
@@ -362,10 +362,10 @@ void TestGraphDisassemble(const ScoreMatrix &matrix,
               path[i]->edges.begin(), path[i]->edges.end(),
               [&](std::pair<Node *, int> a) { return a.first == path[i + 1]; });
           assert(it != path[i]->edges.end());
-          path[i]->edges.erase(it);
-          if (remaining_edges[it->first] == 1) {
+          if (!--remaining_edges[it->first]) {
             start_nodes.push_back(it->first);
           }
+          path[i]->edges.erase(it);
         }
       };
 

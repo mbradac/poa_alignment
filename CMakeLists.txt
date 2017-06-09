@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.1)
 # set project name
 project(poa_alignment)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -std=c++14")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -std=c++11")
 
 # dir variables
 set(src_dir ${CMAKE_SOURCE_DIR}/src)
