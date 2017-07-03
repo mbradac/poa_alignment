@@ -1,5 +1,6 @@
 #include "sequence.hpp"
 
+#include <iostream>
 #include <cstring>
 #include <sstream>
 #include <cassert>
@@ -41,7 +42,7 @@ ScoreMatrix::ScoreMatrix(const std::string &score_matrix) {
   memset(matrix_, -1, sizeof matrix_);
   memset(position_of_letter_, -1, sizeof position_of_letter_);
 
-  assert(getline(matrix_stream, line));
+  getline(matrix_stream, line);
   std::string letter;
   std::istringstream line_stream(line);
   alphabet_size_ = 0;
@@ -50,10 +51,10 @@ ScoreMatrix::ScoreMatrix(const std::string &score_matrix) {
     position_of_letter_[static_cast<int>(letter[0])] = alphabet_size_++;
   }
   for (int i = 0; i < alphabet_size_; ++i) {
-    assert(getline(matrix_stream, line));
+    getline(matrix_stream, line);
     std::istringstream line_stream(line);
     for (int j = 0; j < alphabet_size_; ++j) {
-      assert((line_stream >> matrix_[i][j]));
+      line_stream >> matrix_[i][j];
     }
   }
   ++alphabet_size_;

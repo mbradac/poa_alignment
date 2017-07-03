@@ -1,6 +1,4 @@
-#include <cassert>
 #include <cstdio>
-#include <cassert>
 #include <sstream>
 #include <fstream>
 #include <stack>
@@ -12,6 +10,13 @@
 #include "sequence.hpp"
 #include "poa_alignment.hpp"
 
+#define Assert(x)   \
+  do {              \
+    if (!(x)) {     \
+      std::abort(); \
+    }               \
+  } while (0)
+
 namespace {
 
 using namespace poa_alignment;
@@ -19,6 +24,7 @@ using namespace poa_alignment;
 std::string ReadFile(const char *path) {
   std::ifstream file;
   file.open(path);
+  Assert(file.is_open());
   std::stringstream file_stream;
   file_stream << file.rdbuf();
   file.close();
@@ -26,14 +32,14 @@ std::string ReadFile(const char *path) {
 }
 
 void Check(Node *n1, Node *n2, std::unordered_map<Node *, Node *> &visited) {
-  assert(n1->letter == n2->letter);
+  Assert(n1->letter == n2->letter);
   if (n1->edges.size() != n2->edges.size()) {
-    assert(n1->edges.size() == n2->edges.size());
+    Assert(n1->edges.size() == n2->edges.size());
   }
-  assert(n1->edges.size() == n2->edges.size());
+  Assert(n1->edges.size() == n2->edges.size());
   auto it = visited.find(n1);
   if (it != visited.end()) {
-    assert(it->second == n2);
+    Assert(it->second == n2);
     return;
   }
   visited[n1] = n2;
@@ -44,7 +50,7 @@ void Check(Node *n1, Node *n2, std::unordered_map<Node *, Node *> &visited) {
   std::sort(n1->edges.begin(), n1->edges.end(), cmp);
   std::sort(n2->edges.begin(), n2->edges.end(), cmp);
   for (int i = 0; i < static_cast<int>(n1->edges.size()); ++i) {
-    assert(n1->edges[i].second == n2->edges[i].second);
+    Assert(n1->edges[i].second == n2->edges[i].second);
     Check(n1->edges[i].first, n2->edges[i].first, visited);
   }
 }
@@ -64,7 +70,7 @@ void Run(const std::string &s1, const std::string &s2,
   Graph graph(&storage, sequence1);
   auto path = AlignSequenceToGraph(graph, sequence2, weights, matrix, 1);
   std::unordered_map<Node *, Node *> visited;
-  assert(graph.start_nodes.size() == expected_graph.size());
+  Assert(graph.start_nodes.size() == expected_graph.size());
   auto cmp =
       [](const Node *n1, const Node *n2) { return n1->letter < n2->letter; };
   std::sort(graph.start_nodes.begin(), graph.start_nodes.end(), cmp);
@@ -72,9 +78,9 @@ void Run(const std::string &s1, const std::string &s2,
   for (int i = 0; i < static_cast<int>(graph.start_nodes.size()); ++i) {
     Check(graph.start_nodes[i], expected_graph[i], visited);
   }
-  assert(path.size() == expected_path.size());
+  Assert(path.size() == expected_path.size());
   for (int i = 0; i < static_cast<int>(expected_path.size()); ++i) {
-    assert(visited[path[i]] == expected_path[i]);
+    Assert(visited[path[i]] == expected_path[i]);
   }
 }
 
@@ -281,7 +287,7 @@ void TestFindConcensus(const ScoreMatrix &matrix,
     for (auto *node : concensus_nodes) {
       concensus_string += matrix.position_to_letter(node->letter);
     }
-    assert(concensus_string == "PKMDVRPQKNETC");
+    Assert(concensus_string == "PKMDVRPQKNETC");
   }
   {
     CREATE(p1, 'P');
@@ -324,7 +330,7 @@ void TestFindConcensus(const ScoreMatrix &matrix,
     for (auto *node : concensus_nodes) {
       concensus_string += matrix.position_to_letter(node->letter);
     }
-    assert(concensus_string == "PKMDVRNETC");
+    Assert(concensus_string == "PKMDVRNETC");
   }
   printf("TestFindConcensus OK!\n");
 }
@@ -361,7 +367,7 @@ void TestGraphDisassemble(const ScoreMatrix &matrix,
           auto it = std::find_if(
               path[i]->edges.begin(), path[i]->edges.end(),
               [&](std::pair<Node *, int> a) { return a.first == path[i + 1]; });
-          assert(it != path[i]->edges.end());
+          Assert(it != path[i]->edges.end());
           if (!--remaining_edges[it->first]) {
             start_nodes.push_back(it->first);
           }
@@ -382,7 +388,7 @@ void TestGraphDisassemble(const ScoreMatrix &matrix,
         }
       }
     }
-    assert(weights.size() + 1 == sequence.sequence.size());
+    Assert(weights.size() + 1 == sequence.sequence.size());
     return std::make_pair(sequence, weights);
   };
   {
@@ -419,12 +425,12 @@ void TestGraphDisassemble(const ScoreMatrix &matrix,
       for (auto c : got.first.sequence) {
         concensus_string += matrix.position_to_letter(c);
       }
-      assert(concensus_string == expected_concensus[j]);
-      assert(got.second == weights[j]);
+      Assert(concensus_string == expected_concensus[j]);
+      Assert(got.second == weights[j]);
       RemovePath(concensus, start_nodes);
       ++j;
     }
-    assert(j == static_cast<int>(expected_concensus.size()));
+    Assert(j == static_cast<int>(expected_concensus.size()));
     printf("TestGraphDisassemble OK!\n");
   }
 }
@@ -498,7 +504,7 @@ void TestAlignGraphToGraph(const ScoreMatrix &matrix) {
 
   AlignGraphToGraph(g2, g1, matrix, 1);
 
-  assert(g2.start_nodes.size() == g3.start_nodes.size());
+  Assert(g2.start_nodes.size() == g3.start_nodes.size());
   auto cmp = [](Node *n, Node *m) { return n->letter < m->letter; };
 
   std::sort(g2.start_nodes.begin(), g2.start_nodes.end(), cmp);
