@@ -127,7 +127,7 @@ Graph::Graph(NodeStorage *storage, Sequence sequence,
 
 std::vector<std::pair<int, Node *>> CalculateAlignment(
     const std::vector<Node *> &nodes, const std::vector<Node *> &start_nodes,
-    const Node *end_node, Sequence sequence, const ScoreMatrix &matrix,
+    const Node *end_node, Sequence sequence, int match, int mismatch,
     int gap_penalty, AlignmentType type,
     const std::unordered_set<Node *> &relevant) {
   assert(gap_penalty >= 0);
@@ -147,9 +147,11 @@ std::vector<std::pair<int, Node *>> CalculateAlignment(
     }
   };
 
+  auto get_score = [&](char a, char b) { return a == b ? match : -mismatch; };
+
   // Calculate alignment.
   for (Node *start_node : start_nodes) {
-    auto score = matrix.get_score(sequence.sequence[0], start_node->letter);
+    auto score = get_score(sequence.sequence[0], start_node->letter);
     if (type == AlignmentType::FIXED || type == AlignmentType::LEFT_FIXED) {
       dp.insert({{0, start_node}, -1e9});
     }
@@ -165,7 +167,7 @@ std::vector<std::pair<int, Node *>> CalculateAlignment(
           update(i, next.first, i, node, -gap_penalty);
         }
         update(i, next.first, i - 1, node,
-               matrix.get_score(sequence.sequence[i], next.first->letter));
+               get_score(sequence.sequence[i], next.first->letter));
       }
     }
   }
@@ -219,9 +221,8 @@ bool RelevantNodes(Node *node, Node *end_node,
 // alignment function.
 std::vector<Node *> AlignSequenceToGraph(Graph &graph, Node *start_node,
                                          Node *end_node, Sequence sequence,
-                                         std::vector<int> weights,
-                                         const ScoreMatrix &matrix,
-                                         int gap_penalty) {
+                                         std::vector<int> weights, int match,
+                                         int mismatch, int gap_penalty) {
   if (!sequence.sequence.size()) return {};
   assert(weights.size() + 1 == sequence.sequence.size());
   auto nodes = [&]() {
@@ -257,8 +258,8 @@ std::vector<Node *> AlignSequenceToGraph(Graph &graph, Node *start_node,
   }
 
   auto alignment_states =
-      CalculateAlignment(nodes, start_nodes, end_node, sequence, matrix,
-                         gap_penalty, type, relevant);
+      CalculateAlignment(nodes, start_nodes, end_node, sequence, match,
+                         mismatch, gap_penalty, type, relevant);
 
   if ((start_node && (alignment_states.empty() ||
                       alignment_states[0].second != start_node)) ||
@@ -333,11 +334,10 @@ std::vector<Node *> AlignSequenceToGraph(Graph &graph, Node *start_node,
 }
 
 std::vector<Node *> AlignSequenceToGraph(Graph &graph, Sequence sequence,
-                                         std::vector<int> weights,
-                                         const ScoreMatrix &matrix,
-                                         int gap_penalty) {
-  return AlignSequenceToGraph(graph, nullptr, nullptr, sequence, weights,
-                              matrix, gap_penalty);
+                                         std::vector<int> weights, int match,
+                                         int mismatch, int gap_penalty) {
+  return AlignSequenceToGraph(graph, nullptr, nullptr, sequence, weights, match,
+                              mismatch, gap_penalty);
 }
 
 std::vector<Node *> FindConcensus(const std::vector<Node *> &start_nodes) {
@@ -406,7 +406,7 @@ std::vector<Node *> FindConcensus(const std::vector<Node *> &start_nodes) {
   return concensus_nodes;
 }
 
-void AlignGraphToGraph(Graph &graph1, Graph &graph2, const ScoreMatrix &matrix,
+void AlignGraphToGraph(Graph &graph1, Graph &graph2, int match, int mismatch,
                        int gap_penalty) {
   // TODO: this is also used in the test at the moment either expose it or
   // rewrite test
@@ -446,7 +446,7 @@ void AlignGraphToGraph(Graph &graph1, Graph &graph2, const ScoreMatrix &matrix,
     // TODO: send real subgraph here, don't fake it by sending whole graph and
     // start and end node
     auto path = AlignSequenceToGraph(graph1, start_node, end_node, got.first,
-                                     got.second, matrix, gap_penalty);
+                                     got.second, match, mismatch, gap_penalty);
     if (path.empty()) continue;
     assert(concensus.size() == path.size());
     assert(!start_node || path[0] == start_node);

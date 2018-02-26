@@ -5,7 +5,7 @@
 
 namespace poa_alignment {
 
-Graph GraphTournamentBuildPoa(std::vector<Sequence> sequences,
-                              const ScoreMatrix &matrix, int penalty,
+Graph GraphTournamentBuildPoa(std::vector<Sequence> sequences, int match,
+                              int mismatch, int gap_penalty,
                               NodeStorage &storage);
 }

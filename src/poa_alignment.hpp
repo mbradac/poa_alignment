@@ -105,13 +105,12 @@ class Graph {
 
 std::vector<Node *> TopologicalSort(const std::vector<Node *> &start_nodes);
 
-void AlignGraphToGraph(Graph &graph1, Graph &graph2, const ScoreMatrix &matrix,
+void AlignGraphToGraph(Graph &graph1, Graph &graph2, int match, int mismatch,
                        int gap_penalty);
 
 std::vector<Node *> AlignSequenceToGraph(Graph &graph, Sequence sequence,
-                                         std::vector<int> weights,
-                                         const ScoreMatrix &matrix,
-                                         int gap_penalty);
+                                         std::vector<int> weights, int match,
+                                         int mismatch, int gap_penalty);
 
 std::vector<Node *> FindConcensus(const std::vector<Node *> &start_nodes);
 }

@@ -21,16 +21,6 @@ namespace {
 
 using namespace poa_alignment;
 
-std::string ReadFile(const char *path) {
-  std::ifstream file;
-  file.open(path);
-  Assert(file.is_open());
-  std::stringstream file_stream;
-  file_stream << file.rdbuf();
-  file.close();
-  return file_stream.str();
-}
-
 void Check(Node *n1, Node *n2, std::unordered_map<Node *, Node *> &visited) {
   Assert(n1->letter == n2->letter);
   if (n1->edges.size() != n2->edges.size()) {
@@ -58,17 +48,13 @@ void Check(Node *n1, Node *n2, std::unordered_map<Node *, Node *> &visited) {
 void Run(const std::string &s1, const std::string &s2,
          std::vector<Node *> expected_graph, std::vector<int> weights,
          std::vector<Node *> expected_path) {
-  const char matrix_path[] = "data/matrix/blosum50.mat";
-  ScoreMatrix matrix(ReadFile(matrix_path));
   Sequence sequence1;
   sequence1.sequence = s1;
-  TranslateSequence(&sequence1, matrix);
   Sequence sequence2;
   sequence2.sequence = s2;
-  TranslateSequence(&sequence2, matrix);
   NodeStorage storage;
   Graph graph(&storage, sequence1);
-  auto path = AlignSequenceToGraph(graph, sequence2, weights, matrix, 1);
+  auto path = AlignSequenceToGraph(graph, sequence2, weights, 5, 4, 6);
   std::unordered_map<Node *, Node *> visited;
   Assert(graph.start_nodes.size() == expected_graph.size());
   auto cmp =
@@ -91,12 +77,11 @@ void Run(const std::string &s1, const std::string &s2,
       expected_path);
 }
 
-#define CREATE(VAR, LETTER)                                              \
-  auto *VAR = new Node(LETTER == -1 ? -1 : matrix.get_position(LETTER)); \
+#define CREATE(VAR, LETTER)     \
+  auto *VAR = new Node(LETTER); \
   storage.emplace_back(VAR);
 
-void TestAlignSequenceToGraph(const ScoreMatrix &matrix,
-                              std::vector<std::unique_ptr<Node>> &storage) {
+void TestAlignSequenceToGraph(std::vector<std::unique_ptr<Node>> &storage) {
   {
     CREATE(d1, 'D');
     CREATE(d2, 'D');
@@ -244,8 +229,7 @@ void TestAlignSequenceToGraph(const ScoreMatrix &matrix,
   printf("TestAlignSequenceToGraph OK!\n");
 }
 
-void TestFindConcensus(const ScoreMatrix &matrix,
-                       std::vector<std::unique_ptr<Node>> &storage) {
+void TestFindConcensus(std::vector<std::unique_ptr<Node>> &storage) {
   {
     CREATE(p1, 'P');
     CREATE(k1, 'K');
@@ -285,7 +269,7 @@ void TestFindConcensus(const ScoreMatrix &matrix,
     auto concensus_nodes = FindConcensus(start_nodes);
     std::string concensus_string;
     for (auto *node : concensus_nodes) {
-      concensus_string += matrix.position_to_letter(node->letter);
+      concensus_string += node->letter;
     }
     Assert(concensus_string == "PKMDVRPQKNETC");
   }
@@ -328,15 +312,14 @@ void TestFindConcensus(const ScoreMatrix &matrix,
     auto concensus_nodes = FindConcensus(start_nodes);
     std::string concensus_string;
     for (auto *node : concensus_nodes) {
-      concensus_string += matrix.position_to_letter(node->letter);
+      concensus_string += node->letter;
     }
     Assert(concensus_string == "PKMDVRNETC");
   }
   printf("TestFindConcensus OK!\n");
 }
 
-void TestGraphDisassemble(const ScoreMatrix &matrix,
-                          std::vector<std::unique_ptr<Node>> &storage) {
+void TestGraphDisassemble(std::vector<std::unique_ptr<Node>> &storage) {
   auto RemovePath =
       [](const std::vector<Node *> &path, std::vector<Node *> &start_nodes) {
         if (!path.size()) return;
@@ -421,10 +404,7 @@ void TestGraphDisassemble(const ScoreMatrix &matrix,
       auto concensus = FindConcensus(start_nodes);
       if (concensus.size() <= 1U) break;
       auto got = chain_to_sequence_weight(concensus);
-      std::string concensus_string;
-      for (auto c : got.first.sequence) {
-        concensus_string += matrix.position_to_letter(c);
-      }
+      std::string concensus_string = got.first.sequence;
       Assert(concensus_string == expected_concensus[j]);
       Assert(got.second == weights[j]);
       RemovePath(concensus, start_nodes);
@@ -436,20 +416,20 @@ void TestGraphDisassemble(const ScoreMatrix &matrix,
 }
 #undef CREATE
 
-void TestAlignGraphToGraph(const ScoreMatrix &matrix) {
+void TestAlignGraphToGraph() {
   NodeStorage storage;
 
   Graph g1(&storage);
-  auto n2 = storage.AddNode(matrix.get_position('G'));
-  auto n3 = storage.AddNode(matrix.get_position('T'));
-  auto n4 = storage.AddNode(matrix.get_position('C'));
-  auto n9 = storage.AddNode(matrix.get_position('C'));
-  auto n5 = storage.AddNode(matrix.get_position('A'));
-  auto n6 = storage.AddNode(matrix.get_position('T'));
-  auto n0 = storage.AddNode(matrix.get_position('C'));
-  auto n1 = storage.AddNode(matrix.get_position('C'));
-  auto n7 = storage.AddNode(matrix.get_position('G'));
-  auto n8 = storage.AddNode(matrix.get_position('G'));
+  auto n2 = storage.AddNode('G');
+  auto n3 = storage.AddNode('T');
+  auto n4 = storage.AddNode('C');
+  auto n9 = storage.AddNode('C');
+  auto n5 = storage.AddNode('A');
+  auto n6 = storage.AddNode('T');
+  auto n0 = storage.AddNode('C');
+  auto n1 = storage.AddNode('C');
+  auto n7 = storage.AddNode('G');
+  auto n8 = storage.AddNode('G');
   n0->edges = {{n1, 1}};
   n1->edges = {{n2, 3}};
   n2->edges = {{n3, 3}, {n9, 1}, {n7, 1}};
@@ -461,14 +441,14 @@ void TestAlignGraphToGraph(const ScoreMatrix &matrix) {
   g1.start_nodes = std::vector<Node *>{n0, n5};
 
   Graph g2(&storage);
-  auto bn0 = storage.AddNode(matrix.get_position('C'));
-  auto bn1 = storage.AddNode(matrix.get_position('C'));
-  auto bn2 = storage.AddNode(matrix.get_position('G'));
-  auto bn3 = storage.AddNode(matrix.get_position('C'));
-  auto bn4 = storage.AddNode(matrix.get_position('T'));
-  auto bn5 = storage.AddNode(matrix.get_position('A'));
-  auto bn6 = storage.AddNode(matrix.get_position('T'));
-  auto bn7 = storage.AddNode(matrix.get_position('G'));
+  auto bn0 = storage.AddNode('C');
+  auto bn1 = storage.AddNode('C');
+  auto bn2 = storage.AddNode('G');
+  auto bn3 = storage.AddNode('C');
+  auto bn4 = storage.AddNode('T');
+  auto bn5 = storage.AddNode('A');
+  auto bn6 = storage.AddNode('T');
+  auto bn7 = storage.AddNode('G');
   bn0->edges = {{bn1, 2}};
   bn1->edges = {{bn2, 2}, {bn5, 1}};
   bn2->edges = {{bn3, 3}, {bn7, 2}};
@@ -478,18 +458,18 @@ void TestAlignGraphToGraph(const ScoreMatrix &matrix) {
   g2.start_nodes = std::vector<Node *>{bn0};
 
   Graph g3(&storage);
-  auto cn0 = storage.AddNode(matrix.get_position('C'));
-  auto cn1 = storage.AddNode(matrix.get_position('C'));
-  auto cn2 = storage.AddNode(matrix.get_position('G'));
-  auto cn3 = storage.AddNode(matrix.get_position('C'));
-  auto cn4 = storage.AddNode(matrix.get_position('T'));
-  auto cn5 = storage.AddNode(matrix.get_position('A'));
-  auto cn6 = storage.AddNode(matrix.get_position('T'));
-  auto cn7 = storage.AddNode(matrix.get_position('G'));
-  auto cn8 = storage.AddNode(matrix.get_position('A'));
-  auto cn9 = storage.AddNode(matrix.get_position('T'));
-  auto cn10 = storage.AddNode(matrix.get_position('C'));
-  auto cn11 = storage.AddNode(matrix.get_position('G'));
+  auto cn0 = storage.AddNode('C');
+  auto cn1 = storage.AddNode('C');
+  auto cn2 = storage.AddNode('G');
+  auto cn3 = storage.AddNode('C');
+  auto cn4 = storage.AddNode('T');
+  auto cn5 = storage.AddNode('A');
+  auto cn6 = storage.AddNode('T');
+  auto cn7 = storage.AddNode('G');
+  auto cn8 = storage.AddNode('A');
+  auto cn9 = storage.AddNode('T');
+  auto cn10 = storage.AddNode('C');
+  auto cn11 = storage.AddNode('G');
   cn0->edges = {{cn1, 3}};
   cn1->edges = {{cn2, 5}, {cn5, 1}};
   cn2->edges = {{cn3, 4}, {cn4, 3}, {cn7, 3}};
@@ -502,7 +482,7 @@ void TestAlignGraphToGraph(const ScoreMatrix &matrix) {
   cn7->edges = {{cn11, 1}};
   g3.start_nodes = std::vector<Node *>{cn0, cn8};
 
-  AlignGraphToGraph(g2, g1, matrix, 1);
+  AlignGraphToGraph(g2, g1, 2, 2, 1);
 
   Assert(g2.start_nodes.size() == g3.start_nodes.size());
   auto cmp = [](Node *n, Node *m) { return n->letter < m->letter; };
@@ -518,13 +498,11 @@ void TestAlignGraphToGraph(const ScoreMatrix &matrix) {
 }
 
 int main() {
-  const char matrix_path[] = "data/matrix/blosum62.mat";
   std::vector<std::unique_ptr<Node>> storage;
-  ScoreMatrix matrix(ReadFile(matrix_path));
-  TestAlignSequenceToGraph(matrix, storage);
-  TestFindConcensus(matrix, storage);
-  TestGraphDisassemble(matrix, storage);
-  TestAlignGraphToGraph(matrix);
+  TestAlignSequenceToGraph(storage);
+  TestFindConcensus(storage);
+  TestGraphDisassemble(storage);
+  TestAlignGraphToGraph();
   printf("OK!\n");
   return 0;
 }
